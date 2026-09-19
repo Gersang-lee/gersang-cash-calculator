@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>거상 캐기 계산기</title>
+<style>
+  :root{
+    --bg:#f6f5f2; --panel:#ffffff; --panel-2:#faf9f7;
+    --ink:#1c1b19; --ink-2:#55524c; --ink-3:#8b877f;
+    --line:#e2ded6; --line-2:#efece6;
+    --accent:#8a5a2b; --accent-soft:#f3e7d8;
+    --good:#1f7a4d; --good-soft:#e3f3ea;
+    --warn:#a8442a;
+    --shadow:0 1px 2px rgba(28,27,25,.05), 0 8px 24px rgba(28,27,25,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#141311; --panel:#1d1c19; --panel-2:#232220;
+      --ink:#f0ede7; --ink-2:#b3aea4; --ink-3:#7e7a72;
+      --line:#302e2a; --line-2:#292725;
+      --accent:#d9a066; --accent-soft:#332a20;
+      --good:#5fc78f; --good-soft:#1c2e24;
+      --warn:#e0805f;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#141311; --panel:#1d1c19; --panel-2:#232220;
+    --ink:#f0ede7; --ink-2:#b3aea4; --ink-3:#7e7a72;
+    --line:#302e2a; --line-2:#292725;
+    --accent:#d9a066; --accent-soft:#332a20;
+    --good:#5fc78f; --good-soft:#1c2e24;
+    --warn:#e0805f;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard",
+         "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    margin:0; padding:24px 16px 80px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px; margin:0 auto}
+
+  header{margin-bottom:22px}
+  h1{font-size:22px; margin:0 0 6px; letter-spacing:-.02em}
+  .sub{color:var(--ink-2); font-size:13px; margin:0}
+
+  .card{
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:18px; margin-bottom:16px; box-shadow:var(--shadow);
+  }
+  .card h2{
+    font-size:14px; margin:0 0 4px; letter-spacing:-.01em;
+    display:flex; align-items:center; gap:8px;
+  }
+  .card .hint{color:var(--ink-3); font-size:12px; margin:0 0 14px}
+  .tag{
+    font-size:11px; font-weight:600; padding:2px 7px; border-radius:99px;
+    background:var(--accent-soft); color:var(--accent); letter-spacing:.02em;
+  }
+
+  /* --- 공용 상자 --- */
+  .box-row{display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end}
+  .field{display:flex; flex-direction:column; gap:5px}
+  .field label{font-size:11px; color:var(--ink-3); font-weight:600}
+  input[type=number], select{
+    background:var(--panel-2); color:var(--ink);
+    border:1px solid var(--line); border-radius:8px;
+    padding:8px 10px; font:inherit; font-variant-numeric:tabular-nums;
+    width:100%; min-width:0;
+  }
+  input[type=number]{text-align:right}
+  input[type=number]:focus, select:focus{
+    outline:2px solid var(--accent); outline-offset:-1px; border-color:transparent;
+  }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button{
+    -webkit-appearance:none; margin:0;
+  }
+  input[type=number]{-moz-appearance:textfield}
+  .field.box-price input{width:170px}
+  .field.unit select{width:110px}
+
+  /* --- 아이템 시세 그리드 --- */
+  .grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(215px,1fr)); gap:10px;
+  }
+  .item{
+    display:flex; align-items:center; gap:8px;
+    background:var(--panel-2); border:1px solid var(--line-2);
+    border-radius:8px; padding:7px 9px;
+  }
+  .item span{flex:1; font-size:12.5px; color:var(--ink-2); min-width:0}
+  .item input{width:86px; padding:5px 7px; font-size:13px}
+  .item.filled span{color:var(--ink)}
+  .item.filled{border-color:var(--line)}
+
+  /* --- 컨트롤 --- */
+  .controls{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px}
+  .controls .spacer{flex:1}
+  button{
+    background:var(--panel-2); color:var(--ink);
+    border:1px solid var(--line); border-radius:8px;
+    padding:7px 13px; font:inherit; font-size:12.5px; cursor:pointer;
+  }
+  button:hover{border-color:var(--accent); color:var(--accent)}
+  .seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden}
+  .seg button{border:0; border-radius:0; background:transparent; padding:7px 12px}
+  .seg button+button{border-left:1px solid var(--line)}
+  .seg button[aria-pressed="true"]{background:var(--accent-soft); color:var(--accent); font-weight:600}
+  .seg button:hover{background:var(--line-2)}
+  .seg button[aria-pressed="true"]:hover{background:var(--accent-soft)}
+
+  /* --- 결과 표 --- */
+  .table-scroll{overflow-x:auto; margin:0 -18px; padding:0 18px}
+  table{width:100%; border-collapse:collapse; min-width:720px}
+  th,td{padding:9px 10px; text-align:right; white-space:nowrap}
+  th{
+    font-size:11px; color:var(--ink-3); font-weight:600; text-align:right;
+    border-bottom:1px solid var(--line); letter-spacing:.02em;
+  }
+  th.name, td.name{text-align:left}
+  th.sortable{cursor:pointer; user-select:none}
+  th.sortable:hover{color:var(--accent)}
+  th[data-active="1"]{color:var(--accent)}
+  td{border-bottom:1px solid var(--line-2); font-variant-numeric:tabular-nums}
+  tbody tr:hover td{background:var(--panel-2)}
+  tr.incomplete td{color:var(--ink-3)}
+  tr.incomplete td.name{color:var(--ink-3)}
+  .kind{
+    font-size:10.5px; color:var(--ink-3); border:1px solid var(--line);
+    border-radius:4px; padding:1px 5px; margin-right:7px; vertical-align:1px;
+  }
+  .kind.pkg{color:var(--accent); border-color:var(--accent)}
+  .ratio{font-weight:700; font-size:14px}
+  .rank1 .ratio{color:var(--good)}
+  .rank1 td{background:var(--good-soft) !important}
+  .muted{color:var(--ink-3)}
+  .composition{font-size:11.5px; color:var(--ink-3); margin-top:2px; white-space:normal}
+  .avg{
+    display:flex; flex-wrap:wrap; gap:22px; padding:13px 0 0; margin-top:4px;
+    border-top:1px solid var(--line);
+  }
+  .avg div{display:flex; flex-direction:column; gap:2px}
+  .avg b{font-size:17px; font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+  .avg small{font-size:11px; color:var(--ink-3)}
+  .empty{color:var(--ink-3); padding:26px 0; text-align:center; font-size:13px}
+  footer{color:var(--ink-3); font-size:11.5px; text-align:center; margin-top:26px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>거상 캐기 계산기</h1>
+  <p class="sub">철희의 선물상자 값을 공용으로 빼고, 나머지 아이템 지전 시세를 넣으면 상품별 현금 비율(1원당 지전)이 나옵니다.</p>
+</header>
+
+<!-- 공용: 철희의 선물상자 -->
+<section class="card">
+  <h2><span class="tag">공용</span> 철희의 선물상자</h2>
+  <p class="hint">대부분의 상품에 끼워져 있어 단독 판매가가 없습니다. 여기서 한 번만 정하면 모든 상품 계산에 같은 값이 적용됩니다.</p>
+  <div class="box-row">
+    <div class="field box-price">
+      <label for="boxPrice">상자 1개 지전 시세 <span style="color:var(--ink-3);font-weight:400">(주작 최저 0.47억)</span></label>
+      <input type="number" id="boxPrice" min="0" step="any" placeholder="0.5">
+    </div>
+    <div class="field unit">
+      <label for="unit">시세 입력 단위</label>
+      <select id="unit">
+        <option value="1e8">억</option>
+        <option value="1e4">만</option>
+        <option value="1">지전</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>&nbsp;</label>
+      <div class="seg" role="group" aria-label="상자 값 처리">
+        <button type="button" id="incOn"  data-inc="1" aria-pressed="true">상자 포함 비율</button>
+        <button type="button" id="incOff" data-inc="0" aria-pressed="false">상자 제외 비율</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 아이템 시세 -->
+<section class="card">
+  <h2>아이템 지전 시세</h2>
+  <p class="hint">기본값은 <b>주작 서버 육의전 최저가</b>(2026-09-19 기준)입니다. 직접 고쳐도 되고, 비워둔 아이템이 낀 상품은 회색으로 표시되고 순위에서 빠집니다.</p>
+  <div class="grid" id="itemGrid"></div>
+</section>
+
+<!-- 결과 -->
+<section class="card">
+  <div class="controls">
+    <div class="seg" role="group" aria-label="상품 종류">
+      <button type="button" data-filter="all" aria-pressed="true">전체</button>
+      <button type="button" data-filter="single" aria-pressed="false">단일</button>
+      <button type="button" data-filter="pkg" aria-pressed="false">패키지</button>
+    </div>
+    <span class="spacer"></span>
+    <button type="button" id="resetBtn">기본 시세로 되돌리기</button>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th class="name sortable" data-sort="name">상품</th>
+          <th class="sortable" data-sort="price">현금가</th>
+          <th>상자</th>
+          <th class="sortable" data-sort="gem">총 지전</th>
+          <th class="sortable" data-sort="ratio" data-active="1">1원당 지전 ▾</th>
+          <th>비율</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="avg" id="avg"></div>
+</section>
+
+<footer>현금가는 docs/products.md 기준 · 기본 시세는 gerinee.com 육의전 주작 서버 최저가(2026-09-19) · 입력값은 이 브라우저에만 저장됩니다</footer>
+
+</div>
+
+<script>
+/* ---------- 데이터 ---------- */
+const BOX = "철희의 선물상자";
+
+const ITEMS = [
+  "불사조의 깃털","봉황의 깃털","봉인의 돌","봉인의 서","각성석","봉기부","개명 허가서",
+  "규화보전","식객명부 1차 장수","식객명부 2차 장수","주머니 확장증서","귀화의 서약",
+  "직업서","환생의 서","다재다능","옷장 확장증서","정령 알","일석이조(30일)",
+  "식객명부 용병","식객명부 몬스터","백의종군","손자병법"
+];
+
+// comp: 아이템 → 개수 (철희의 선물상자는 box 필드로 분리)
+const PRODUCTS = [
+  { name:"불사조의 깃털",      price:3500,  kind:"single", box:0, comp:{"불사조의 깃털":1} },
+  { name:"봉황의 깃털",        price:3500,  kind:"single", box:0, comp:{"봉황의 깃털":1} },
+  { name:"봉인의 돌",          price:4000,  kind:"single", box:0, comp:{"봉인의 돌":1} },
+  { name:"봉인의 서",          price:4000,  kind:"single", box:0, comp:{"봉인의 서":1} },
+  { name:"각성석",             price:5000,  kind:"single", box:0, comp:{"각성석":1} },
+  { name:"봉기부",             price:6000,  kind:"single", box:0, comp:{"봉기부":1} },
+  { name:"개명 허가서",        price:7000,  kind:"single", box:0, comp:{"개명 허가서":1} },
+  { name:"규화보전",           price:8000,  kind:"single", box:1, comp:{"규화보전":1} },
+  { name:"식객명부 1차 장수",  price:8000,  kind:"single", box:1, comp:{"식객명부 1차 장수":1} },
+  { name:"식객명부 2차 장수",  price:8000,  kind:"single", box:1, comp:{"식객명부 2차 장수":1} },
+  { name:"주머니 확장증서",    price:9000,  kind:"single", box:1, comp:{"주머니 확장증서":1} },
+  { name:"귀화의 서약",        price:10000, kind:"single", box:1, comp:{"귀화의 서약":1} },
+  { name:"직업서",             price:10000, kind:"single", box:1, comp:{"직업서":1} },
+  { name:"환생의 서",          price:14000, kind:"single", box:1, comp:{"환생의 서":1} },
+  { name:"다재다능",           price:16000, kind:"single", box:1, comp:{"다재다능":1} },
+
+  { name:"옷장 패키지",        price:8000,  kind:"pkg", box:1, comp:{"옷장 확장증서":5} },
+  { name:"깃털 패키지",        price:10000, kind:"pkg", box:1, comp:{"불사조의 깃털":2,"봉황의 깃털":1} },
+  { name:"정령 패키지",        price:14000, kind:"pkg", box:1, comp:{"정령 알":1,"봉인의 서":1,"일석이조(30일)":1} },
+  { name:"식객명부 패키지",    price:18000, kind:"pkg", box:2, comp:{"식객명부 용병":1,"식객명부 몬스터":1,"식객명부 1차 장수":1,"식객명부 2차 장수":1} },
+  { name:"백의종군 패키지",    price:19000, kind:"pkg", box:2, comp:{"백의종군":4} },
+  { name:"봉인의 돌 패키지",   price:24000, kind:"pkg", box:2, comp:{"봉인의 돌":6} },
+  { name:"봉인의 서 패키지",   price:24000, kind:"pkg", box:2, comp:{"봉인의 서":6} },
+  { name:"종합 선물세트",      price:33000, kind:"pkg", box:3, comp:{"손자병법":1,"식객명부 2차 장수":1,"각성석":1,"불사조의 깃털":1} },
+  { name:"귀서 패키지",        price:45000, kind:"pkg", box:5, comp:{"귀화의 서약":4,"불사조의 깃털":1,"봉황의 깃털":1} }
+];
+
+/* ---------- 상태 ---------- */
+const KEY = "gersang-cash-calc-v3";
+
+// 기본 시세: 주작 서버 육의전 최저가 (2026-09-19 기준, 단위 억)
+// 출처 gerinee.com/trade · 매물이 없던 환생의 서 / 식객명부 용병은 비워둠
+const DEFAULT_BOX = "0.47";        // 철희의 선물상자 (매물 514)
+const DEFAULT_PRICES = {
+  "불사조의 깃털":"0.95",      // 매물 330
+  "봉황의 깃털":"0.98",        // 매물 87
+  "봉인의 돌":"1.05",          // 매물 185
+  "봉인의 서":"1.095",         // 매물 34
+  "각성석":"1.242",            // 매물 219
+  "봉기부":"2",                // 매물 2 — 표본 적음
+  "개명 허가서":"0.33",        // 매물 3 — 표본 적음
+  "규화보전":"2.4",            // 매물 6
+  "식객명부 1차 장수":"0.98",  // 매물 3 — 표본 적음
+  "식객명부 2차 장수":"2.6",   // 매물 12
+  "주머니 확장증서":"1.4",     // 매물 26
+  "귀화의 서약":"2.75",        // 4종(조선·중국·일본·대만) 모두 동일
+  "직업서":"2.55",             // 무투가 기준 (악사 2.64)
+  "환생의 서":"",              // 주작 매물 없음
+  "다재다능":"4",              // 매물 6
+  "옷장 확장증서":"0.8",       // 매물 18
+  "정령 알":"2",               // 푸른색·백은색 2.0 / 초록색 2.1
+  "일석이조(30일)":"1",        // 매물 25
+  "식객명부 용병":"",          // 주작 매물 없음
+  "식객명부 몬스터":"1.3",     // 매물 11
+  "백의종군":"1.28",           // 매물 33
+  "손자병법":"4.9"             // 매물 8
+};
+const freshState = () => ({
+  unit:"1e8", box:DEFAULT_BOX, prices:{...DEFAULT_PRICES},
+  includeBox:true, filter:"all", sort:"ratio", dir:-1
+});
+const state = load() || freshState();
+
+function load(){
+  try{ const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; }catch(e){ return null; }
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
+}
+
+/* ---------- 유틸 ---------- */
+const unitVal = () => Number(state.unit);
+const num = v => { const n = parseFloat(v); return Number.isFinite(n) && n >= 0 ? n : null; };
+const fmt = (n, d=0) => n.toLocaleString("ko-KR", {minimumFractionDigits:d, maximumFractionDigits:d});
+
+// 지전(raw) → 사람이 읽는 문자열
+function gem(raw){
+  if(raw >= 1e8) return fmt(raw/1e8, raw/1e8 >= 100 ? 0 : 1) + "억";
+  if(raw >= 1e4) return fmt(raw/1e4, 0) + "만";
+  return fmt(raw, 0);
+}
+// 1원당 지전 → 표시
+function perWon(raw){
+  if(raw >= 1e8) return fmt(raw/1e8, 2) + "억";
+  if(raw >= 1e4) return fmt(raw/1e4, raw/1e4 >= 100 ? 0 : 1) + "만";
+  return fmt(raw, 0);
+}
+
+/* ---------- 계산 ---------- */
+function compute(p){
+  const u = unitVal();
+  const boxRaw = num(state.box) !== null ? num(state.box) * u : null;
+
+  let itemGem = 0, missing = [];
+  for(const [name, qty] of Object.entries(p.comp)){
+    const v = num(state.prices[name]);
+    if(v === null){ missing.push(name); continue; }
+    itemGem += v * u * qty;
+  }
+
+  const needsBox = state.includeBox && p.box > 0;
+  if(needsBox && boxRaw === null) missing.push(BOX);
+
+  const boxGem = (state.includeBox && boxRaw !== null) ? boxRaw * p.box : 0;
+  const total = itemGem + boxGem;
+  const ready = missing.length === 0;
+
+  return { ...p, itemGem, boxGem, total, ready, ratio: ready ? total / p.price : -1 };
+}
+
+/* ---------- 렌더 ---------- */
+function renderItems(){
+  const g = document.getElementById("itemGrid");
+  g.innerHTML = "";
+  for(const name of ITEMS){
+    const has = num(state.prices[name]) !== null;
+    const row = document.createElement("label");
+    row.className = "item" + (has ? " filled" : "");
+    const span = document.createElement("span");
+    span.textContent = name;
+    const inp = document.createElement("input");
+    inp.type = "number"; inp.min = "0"; inp.step = "any"; inp.placeholder = "0";
+    inp.value = state.prices[name] ?? "";
+    inp.addEventListener("input", () => {
+      state.prices[name] = inp.value;
+      row.classList.toggle("filled", num(inp.value) !== null);
+      save(); renderTable();
+    });
+    row.append(span, inp);
+    g.append(row);
+  }
+}
+
+function renderTable(){
+  const tbody = document.getElementById("tbody");
+  const rows = PRODUCTS
+    .filter(p => state.filter === "all" || p.kind === state.filter)
+    .map(compute);
+
+  // 정렬: 미완성 행은 항상 아래로
+  const dir = state.dir;
+  rows.sort((a,b) => {
+    if(a.ready !== b.ready) return a.ready ? -1 : 1;
+    let d = 0;
+    if(state.sort === "name")  d = a.name.localeCompare(b.name, "ko");
+    if(state.sort === "price") d = a.price - b.price;
+    if(state.sort === "gem")   d = a.total - b.total;
+    if(state.sort === "ratio") d = a.ratio - b.ratio;
+    return d * dir;
+  });
+
+  const best = rows.find(r => r.ready);
+  tbody.innerHTML = "";
+
+  if(!rows.length){
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">표시할 상품이 없습니다.</td></tr>';
+    return;
+  }
+
+  for(const r of rows){
+    const tr = document.createElement("tr");
+    if(!r.ready) tr.className = "incomplete";
+    else if(state.sort === "ratio" && dir === -1 && r === best) tr.className = "rank1";
+
+    const comp = Object.entries(r.comp).map(([n,q]) => q > 1 ? `${n}×${q}` : n).join(" + ")
+      + (r.box ? ` + 상자×${r.box}` : "");
+
+    const ratioCell = r.ready
+      ? `<span class="ratio">${perWon(r.ratio)}</span>`
+      : `<span class="muted">시세 미입력</span>`;
+    const ratioPair = r.ready ? `1 : ${fmt(Math.round(r.ratio))}` : "—";
+
+    tr.innerHTML = `
+      <td class="name">
+        <span class="kind ${r.kind === "pkg" ? "pkg" : ""}">${r.kind === "pkg" ? "패키지" : "단일"}</span>${r.name}
+        <div class="composition">${comp}</div>
+      </td>
+      <td>${fmt(r.price)}원</td>
+      <td>${r.box ? (state.includeBox ? `${r.box}개` : `<span class="muted">${r.box}개 제외</span>`) : "<span class='muted'>—</span>"}</td>
+      <td>${r.ready ? gem(r.total) : "<span class='muted'>—</span>"}</td>
+      <td>${ratioCell}</td>
+      <td class="muted">${ratioPair}</td>`;
+    tbody.append(tr);
+  }
+
+  renderAvg(rows.filter(r => r.ready));
+}
+
+function renderAvg(ready){
+  const el = document.getElementById("avg");
+  if(!ready.length){
+    el.innerHTML = `<div><b class="muted">—</b><small>시세를 입력하면 요약이 나옵니다</small></div>`;
+    return;
+  }
+  const best  = ready.reduce((a,b) => b.ratio > a.ratio ? b : a);
+  const worst = ready.reduce((a,b) => b.ratio < a.ratio ? b : a);
+  const totalGem = ready.reduce((s,r) => s + r.total, 0);
+  const totalWon = ready.reduce((s,r) => s + r.price, 0);
+
+  el.innerHTML = `
+    <div><b style="color:var(--good)">${perWon(best.ratio)}</b><small>최고 효율 · ${best.name}</small></div>
+    <div><b style="color:var(--warn)">${perWon(worst.ratio)}</b><small>최저 효율 · ${worst.name}</small></div>
+    <div><b>${perWon(totalGem/totalWon)}</b><small>전 상품 평균 (1원당)</small></div>
+    <div><b>${ready.length}종</b><small>계산 완료 / 전체 ${PRODUCTS.length}종</small></div>`;
+}
+
+/* ---------- 이벤트 ---------- */
+const boxInput = document.getElementById("boxPrice");
+boxInput.value = state.box;
+boxInput.addEventListener("input", () => { state.box = boxInput.value; save(); renderTable(); });
+
+const unitSel = document.getElementById("unit");
+unitSel.value = state.unit;
+unitSel.addEventListener("change", () => { state.unit = unitSel.value; save(); renderTable(); });
+
+for(const btn of document.querySelectorAll("[data-inc]")){
+  btn.addEventListener("click", () => {
+    state.includeBox = btn.dataset.inc === "1";
+    document.getElementById("incOn").setAttribute("aria-pressed", String(state.includeBox));
+    document.getElementById("incOff").setAttribute("aria-pressed", String(!state.includeBox));
+    save(); renderTable();
+  });
+}
+
+for(const btn of document.querySelectorAll("[data-filter]")){
+  btn.addEventListener("click", () => {
+    state.filter = btn.dataset.filter;
+    document.querySelectorAll("[data-filter]").forEach(b =>
+      b.setAttribute("aria-pressed", String(b === btn)));
+    save(); renderTable();
+  });
+}
+
+for(const th of document.querySelectorAll("th.sortable")){
+  th.addEventListener("click", () => {
+    const k = th.dataset.sort;
+    if(state.sort === k) state.dir *= -1;
+    else { state.sort = k; state.dir = k === "name" ? 1 : -1; }
+    document.querySelectorAll("th.sortable").forEach(t => {
+      t.removeAttribute("data-active");
+      t.textContent = t.textContent.replace(/ [▾▴]$/, "");
+    });
+    th.setAttribute("data-active", "1");
+    th.textContent += state.dir === -1 ? " ▾" : " ▴";
+    save(); renderTable();
+  });
+}
+
+document.getElementById("resetBtn").addEventListener("click", () => {
+  if(!confirm("주작 서버 기본 시세로 되돌릴까요?")) return;
+  state.box = DEFAULT_BOX; state.prices = {...DEFAULT_PRICES};
+  boxInput.value = DEFAULT_BOX;
+  save(); renderItems(); renderTable();
+});
+
+/* ---------- 초기 상태 복원 ---------- */
+document.getElementById("incOn").setAttribute("aria-pressed", String(state.includeBox));
+document.getElementById("incOff").setAttribute("aria-pressed", String(!state.includeBox));
+document.querySelectorAll("[data-filter]").forEach(b =>
+  b.setAttribute("aria-pressed", String(b.dataset.filter === state.filter)));
+
+renderItems();
+renderTable();
+</script>
+</body>
+</html>
